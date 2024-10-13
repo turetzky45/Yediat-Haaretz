@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Israel Map Game - Interactive</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <style>
+        body, html {
+            height: 100%;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+        }
+        #map {
+            flex-grow: 1;
+            width: 100%;
+        }
+        #menu {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 1000;
+        }
+        #scoreboard {
+            height: 50px;
+            width: 100%;
+            background-color: #f4f4f4;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        #scoreboard h2 {
+            margin: 0;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="menu">
+        <button id="startGame">Start Game</button>
+    </div>
+
+    <div id="map"></div>
+
+    <div id="scoreboard">
+        <h2 id="status">Welcome! Click Start to Begin.</h2>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
+
+    <script>
+        let score = 0;
+        let round = 0;
+        const totalRounds = 10;
+        let currentCity = '';
+        let citiesShown = [];
+        let actualMarkers = [];
+        let townData = [];
+        let gameStarted = false;
+        let canClickMap = false; // Initially set to false
+
+        const apiKey = 'fHa3mLmbPpSjsX5YPxTD';
+        const map = L.map('map').setView([31.0461, 34.8516], 7);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://carto.com/">CARTO</a> contributors',
+            maxZoom: 18,
+        }).addTo(map);
+
+        let playerMarker = null;
+        let actualMarker = null;
+
+        // Custom marker icons
+        const playerIcon = L.icon({
+            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
+            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+            iconSize: [25, 41],
+            iconAnchor: [12, 41],
+            popupAnchor: [1, -34],
+            shadowSize: [41, 41]
+        });
+
+        const actualIcon = L.icon({
+            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
+            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+            iconSize: [25, 41],
+            iconAnchor: [12, 41],
+            popupAnchor: [1, -34],
+            shadowSize: [41, 41]
+        });
+
+        function loadTownData() {
+            fetch('processed_towns_with_hebrew.csv')
+                .then(response => response.text())
+                .then(csvText => {
+                    Papa.parse(csvText, {
+                        header: true,
+                        complete: function(results) {
+                            townData = results.data.filter(city =>
+                                !isNaN(parseFloat(city.LAT)) && !isNaN(parseFloat(city.LONG))
+                            );
+                            console.log("City data loaded:", townData);
+                        }
+                    });
+                });
+        }
+
+        function haversine(lat1, lon1, lat2, lon2) {
+    // Check if any of the lat/lon values are invalid (non-numeric, null, undefined, etc.)
+    if (
+        isNaN(lat1) || isNaN(lon1) || isNaN(lat2) || isNaN(lon2) ||
+        lat1 === null || lat2 === null || lon1 === null || lon2 === null ||
+        lat1 === undefined || lat2 === undefined || lon1 === undefined || lon2 === undefined
+    ) {
+        console.error('Invalid coordinates provided for Haversine calculation.');
+        return NaN;
+    }
+
+    const R = 6371; // Radius of the Earth in kilometers
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+              Math.sin(dLon / 2) * Math.sin(dLon / 2);
+
+    // Clamp 'a' between 0 and 1 to handle floating-point precision issues
+    const clampedA = Math.max(0, Math.min(1, a));
+
+    const c = 2 * Math.atan2(Math.sqrt(clampedA), Math.sqrt(1 - clampedA));
+    return R * c;
+}
+
+
+        function startNewRound() {
+            if (round >= totalRounds) {
+                endGame();
+                return;
+            }
+
+            canClickMap = true; // Enable map clicking for the new round
+
+            if (playerMarker) {
+                map.removeLayer(playerMarker);
+                playerMarker = null;
+            }
+            if (actualMarker) {
+                map.removeLayer(actualMarker);
+                actualMarker = null;
+            }
+
+            const cityIndex = Math.floor(Math.random() * townData.length);
+            currentCity = townData[cityIndex];
+            citiesShown.push(currentCity);
+            document.getElementById('status').textContent = `Round ${round + 1}/${totalRounds}: Find ${currentCity.HEB_NAME}`;
+        }
+
+        function endGame() {
+            let cityList = citiesShown.map(city => `<a href="${city.HEB_WIKI_LINK}" target="_blank">${city.HEB_NAME}</a>`).join(', ');
+            document.getElementById('status').innerHTML = `Game Over! Final Score: ${score}. Cities: ${cityList}`;
+
+            actualMarkers.forEach(marker => marker.addTo(map));
+
+            canClickMap = false;
+
+            const menu = document.getElementById('menu');
+            menu.style.display = 'block';
+            menu.innerHTML = '<button id="restartGame">Play Again</button>';
+            document.getElementById('restartGame').addEventListener('click', () => {
+                location.reload();
+            });
+        }
+
+        function handleMapClick(event) {
+            if (!gameStarted || !canClickMap) return;
+
+            canClickMap = false;
+
+            const guessLat = event.latlng.lat;
+            const guessLng = event.latlng.lng;
+
+            if (playerMarker) {
+                map.removeLayer(playerMarker);
+            }
+
+            playerMarker = L.marker([guessLat, guessLng], {icon: playerIcon}).addTo(map).bindPopup("Your guess").openPopup();
+
+            const actualLat = parseFloat(currentCity.LAT);
+            const actualLng = parseFloat(currentCity.LONG);
+
+            if (!isNaN(actualLat) && !isNaN(actualLng)) {
+                const distance = haversine(guessLat, guessLng, actualLat, actualLng);
+
+                // Updated score calculation (0-2000 points)
+                const maxDistance = 500; // km
+                const roundScore = Math.max(0, Math.round(2000 * (1 - distance / maxDistance)));
+                score += roundScore;
+
+                document.getElementById('status').textContent = `Your guess: ${distance.toFixed(2)} km away. Round score: ${roundScore}`;
+
+                actualMarker = L.marker([actualLat, actualLng], {icon: actualIcon})
+                    .addTo(map)
+                    .bindPopup(`Actual location: ${currentCity.HEB_NAME}`)
+                    .openPopup();
+
+                actualMarkers.push(actualMarker);
+            } else {
+                console.error("Invalid coordinates for city:", currentCity);
+                document.getElementById('status').textContent = "Error calculating distance. Moving to next round.";
+            }
+
+            round++;
+            setTimeout(startNewRound, 3000);
+        }
+
+        function startGame() {
+            if (townData.length === 0) {
+                alert("City data is still loading. Please wait.");
+                return;
+            }
+
+            document.getElementById('menu').style.display = 'none';
+            gameStarted = true;
+            startNewRound();
+            map.invalidateSize();
+        }
+
+        loadTownData();
+
+        map.on('click', handleMapClick);
+
+        document.getElementById('startGame').addEventListener('click', startGame);
+    </script>
+</body>
+</html>
