@@ -65,7 +65,7 @@
         let actualMarkers = [];
         let townData = [];
         let gameStarted = false;
-        let canClickMap = false; // Initially set to false
+        let canClickMap = false;
 
         const apiKey = 'fHa3mLmbPpSjsX5YPxTD';
         const map = L.map('map').setView([31.0461, 34.8516], 7);
@@ -77,7 +77,6 @@
         let playerMarker = null;
         let actualMarker = null;
 
-        // Custom marker icons
         const playerIcon = L.icon({
             iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
             shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
@@ -113,30 +112,27 @@
         }
 
         function haversine(lat1, lon1, lat2, lon2) {
-    // Check if any of the lat/lon values are invalid (non-numeric, null, undefined, etc.)
-    if (
-        isNaN(lat1) || isNaN(lon1) || isNaN(lat2) || isNaN(lon2) ||
-        lat1 === null || lat2 === null || lon1 === null || lon2 === null ||
-        lat1 === undefined || lat2 === undefined || lon1 === undefined || lon2 === undefined
-    ) {
-        console.error('Invalid coordinates provided for Haversine calculation.');
-        return NaN;
-    }
+            if (
+                isNaN(lat1) || isNaN(lon1) || isNaN(lat2) || isNaN(lon2) ||
+                lat1 === null || lat2 === null || lon1 === null || lon2 === null ||
+                lat1 === undefined || lat2 === undefined || lon1 === undefined || lon2 === undefined
+            ) {
+                console.error('Invalid coordinates provided for Haversine calculation.');
+                return NaN;
+            }
 
-    const R = 6371; // Radius of the Earth in kilometers
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-              Math.sin(dLon / 2) * Math.sin(dLon / 2);
+            const R = 6371;
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                      Math.sin(dLon / 2) * Math.sin(dLon / 2);
 
-    // Clamp 'a' between 0 and 1 to handle floating-point precision issues
-    const clampedA = Math.max(0, Math.min(1, a));
+            const clampedA = Math.max(0, Math.min(1, a));
 
-    const c = 2 * Math.atan2(Math.sqrt(clampedA), Math.sqrt(1 - clampedA));
-    return R * c;
-}
-
+            const c = 2 * Math.atan2(Math.sqrt(clampedA), Math.sqrt(1 - clampedA));
+            return R * c;
+        }
 
         function startNewRound() {
             if (round >= totalRounds) {
@@ -144,7 +140,7 @@
                 return;
             }
 
-            canClickMap = true; // Enable map clicking for the new round
+            canClickMap = true;
 
             if (playerMarker) {
                 map.removeLayer(playerMarker);
@@ -175,6 +171,12 @@
             document.getElementById('restartGame').addEventListener('click', () => {
                 location.reload();
             });
+
+            // Remove the final player marker
+            if (playerMarker) {
+                map.removeLayer(playerMarker);
+                playerMarker = null;
+            }
         }
 
         function handleMapClick(event) {
@@ -197,9 +199,8 @@
             if (!isNaN(actualLat) && !isNaN(actualLng)) {
                 const distance = haversine(guessLat, guessLng, actualLat, actualLng);
 
-                // Updated score calculation (0-2000 points)
-                const maxDistance = 500; // km
-                const roundScore = Math.max(0, Math.round(2000 * (1 - distance / maxDistance)));
+                // New scoring system: y = -37x + 1933
+                const roundScore = Math.max(0, Math.round(-37 * distance + 1933));
                 score += roundScore;
 
                 document.getElementById('status').textContent = `Your guess: ${distance.toFixed(2)} km away. Round score: ${roundScore}`;
