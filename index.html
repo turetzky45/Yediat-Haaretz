@@ -93,10 +93,10 @@
             zoomControl: false,
             doubleClickZoom: false
         }).setView([31.0461, 34.8516], 7);
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}.png', {
-            attribution: '&copy; <a href="https://carto.com/">CARTO</a> contributors',
-            maxZoom: 18,
-        }).addTo(map);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; <a href="https://carto.com/">CARTO</a> contributors',
+    maxZoom: 18,
+}).addTo(map);
 
         let actualMarker = null;
 
